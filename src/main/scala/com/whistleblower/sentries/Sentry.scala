@@ -7,10 +7,10 @@ import java.util.UUID
  */
 
 
-trait Sentry[M] {
+trait Sentry[E] {
 
-  type Applicant[M] = M => Unit
+  type Applicant[E] = E => Unit
   type Ticket = UUID
 
-  def report(to: Applicant[M]): Ticket
+  def report(to: Applicant[E]): Ticket
 }
