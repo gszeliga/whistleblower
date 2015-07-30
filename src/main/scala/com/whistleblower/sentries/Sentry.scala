@@ -12,5 +12,5 @@ trait Sentry[E] {
   type Applicant[E] = E => Unit
   type Ticket = UUID
 
-  def report(to: Applicant[E]): Ticket
+  def register(to: Applicant[E]): Ticket
 }

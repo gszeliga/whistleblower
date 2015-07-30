@@ -8,6 +8,6 @@ import com.whistleblower.sentries.Sentry
  */
 class Subscription[E,T](val sentry: Sentry[E], val agent: Agent[T])(f: E => T) {
 
-  private val ticket = sentry.report(e => agent.push(f(e)))
+  private val ticket = sentry.register(e => agent.push(f(e)))
 
 }
