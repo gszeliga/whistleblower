@@ -13,4 +13,5 @@ trait Sentry[E] {
   type Ticket = UUID
 
   def register(to: Applicant[E]): Ticket
+  def stop
 }

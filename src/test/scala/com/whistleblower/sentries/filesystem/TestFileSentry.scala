@@ -1,6 +1,7 @@
 package com.whistleblower.sentries.filesystem
 
 import java.io.{File, FileOutputStream, IOException}
+import java.nio.file.FileVisitResult.CONTINUE
 import java.nio.file._
 import java.nio.file.attribute.BasicFileAttributes
 
@@ -27,21 +28,21 @@ class TestFileSentry extends FlatSpec with Matchers {
       Files.walkFileTree(sampleDir, new FileVisitor[Path] {
         def visitFileFailed(file: Path, exc: IOException) = {
           Files.delete(file)
-          FileVisitResult.CONTINUE
+          CONTINUE
         }
 
         def visitFile(file: Path, attrs: BasicFileAttributes) = {
           Files.delete(file)
-          FileVisitResult.CONTINUE
+          CONTINUE
         }
 
-        def preVisitDirectory(dir: Path, attrs: BasicFileAttributes) = FileVisitResult.CONTINUE
+        def preVisitDirectory(dir: Path, attrs: BasicFileAttributes) = CONTINUE
 
         def postVisitDirectory(dir: Path, exc: IOException) = {
           if(exc == null)
           {
             Files.delete(dir)
-            FileVisitResult.CONTINUE
+            CONTINUE
           }
           else throw exc
         }
@@ -71,7 +72,7 @@ class TestFileSentry extends FlatSpec with Matchers {
     }
   }
 
-  it should "notify an accurate event when single update takes place at monitored directory" in withPaths { (dir, file) => {
+  it should "notify an UPDATE event when single update takes place at monitored directory" in withPaths { (dir, file) => {
 
     val sentry = FileSentry(dir)
 
@@ -92,4 +93,24 @@ class TestFileSentry extends FlatSpec with Matchers {
     finally sentry.stop
   }
   }
+
+  it should "notify an DELETE event when monitored file is gone" in withPaths { (dir, file) => {
+
+    val sentry = FileSentry(dir)
+
+    try{
+      var event: Option[FileSentryEvent] = None
+
+      sentry.register(e => event = Option(e))
+
+      Files.delete(file)
+
+      Thread.sleep(1000l)
+
+      event should be(Some(FileDeleted(file)))
+    }
+    finally sentry.stop
+  }
+  }
+
 }

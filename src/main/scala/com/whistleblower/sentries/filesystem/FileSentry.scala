@@ -1,7 +1,7 @@
 package com.whistleblower.sentries.filesystem
 
 import java.nio.file.Files.exists
-import java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY
+import java.nio.file.StandardWatchEventKinds.{ENTRY_MODIFY,ENTRY_DELETE}
 import java.nio.file.WatchEvent.Kind
 import java.nio.file._
 import java.util.UUID
@@ -12,7 +12,7 @@ import org.slf4j.LoggerFactory
 
 import scala.async.Async.async
 import scala.collection.JavaConversions._
-import scala.concurrent.{Future, ExecutionContext}
+import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success, Try}
 
 /**
@@ -24,11 +24,12 @@ trait FileSentryEvent{
 }
 
 case class FileUpdated(source: Path) extends FileSentryEvent
+case class FileDeleted(source: Path) extends FileSentryEvent
 
 class FileSentry(private val source: Path)(implicit executor: ExecutionContext) extends Sentry[FileSentryEvent]{
 
   private val log = Logger(LoggerFactory.getLogger(getClass))
-  private val kinds: Array[Kind[_]] = Array(ENTRY_MODIFY)
+  private val kinds: Array[Kind[_]] = Array(ENTRY_MODIFY,ENTRY_DELETE)
 
   private val (_watchService, _watchKey) =  Option(source) match {
     case Some(path) if exists(path) => {
@@ -56,28 +57,18 @@ class FileSentry(private val source: Path)(implicit executor: ExecutionContext) 
       {
         log.debug("[file-sentry] Polling for events...")
 
-        Try(Option(_watchService.poll())) match {
-          case Success(Some(watchKey)) if watchKey == _watchKey => {
+        _watchKey.pollEvents().map(event => {
+          val file = event.context().asInstanceOf[Path]
+          val path = Paths.get(source.toString, file.toString)
 
-            watchKey.pollEvents().map(event => {
-              val file = event.context().asInstanceOf[Path]
-              val path = Paths.get(source.toString, file.toString)
+          log.debug(s"[file-sentry] Event '${event.kind}' polled for path '${path}'")
 
-              log.debug(s"[file-sentry] Event '${event.kind}' polled for path '${path}'")
-
-              event.kind match {
-                case ENTRY_MODIFY => _applicants.values.foreach(f => f(FileUpdated(path)))
-              }
-
-            })
-          }
-          case Success(None) => {
-            log.debug("[file-sentry] Nothing to do, sleeping for a bit")
-
+          event.kind match {
+            case ENTRY_MODIFY => _applicants.values.foreach(f => f(FileUpdated(path)))
+            case ENTRY_DELETE => _applicants.values.foreach(f => f(FileDeleted(path)))
           }
 
-          case Failure(e) =>
-        }
+        })
 
         Thread.`yield`()
         Thread.sleep(500)
